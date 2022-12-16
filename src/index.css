@@ -1,0 +1,10 @@
+@font-face {
+  font-family: "VL Selphia";
+  src: url("assets/fonts/VLSELPHIA.OTF");
+}
+
+ul {
+  list-style-type: "- ";
+  padding: 0;
+  margin: 0;
+}
