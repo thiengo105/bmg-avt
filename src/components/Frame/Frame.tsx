@@ -14,6 +14,8 @@ import { KonvaEventObject } from "konva/lib/Node";
 import { useSize } from "ahooks";
 import { Vector2d } from "konva/lib/types";
 
+Konva.hitOnDragEnabled = true;
+
 const IMAGE_WIDTH = 640;
 const IMAGE_HEIGHT = 640;
 const GUIDELINE_OFFSET = 5;
@@ -24,6 +26,7 @@ const Wrapper = styled.div`
 `;
 type Snap = "start" | "center" | "end";
 type Orientation = "V" | "H";
+type Pos = { x: number, y: number };
 
 type SnappingEdge = {
   guide: number;
@@ -70,6 +73,9 @@ const Frame = React.forwardRef<Konva.Stage, FrameProps>(
     const exportImageRef = useRef<Konva.Image>(null);
     const trRef = useRef<Konva.Transformer>(null);
     const size = useSize(parentRef);
+
+    const lastCenter = useRef<Pos | null>(null);
+    const lastDis = useRef<number>(0);
 
     const scaleRatio = useMemo(() => {
       if (size) {
@@ -404,6 +410,86 @@ const Frame = React.forwardRef<Konva.Stage, FrameProps>(
       }
     }
 
+    function getDistance(p1: Pos, p2: Pos) {
+      return Math.sqrt(Math.pow(p2.x - p1.x, 2) + Math.pow(p2.y - p1.y, 2));
+    }
+
+    function getCenter(p1: Pos, p2: Pos) {
+      return {
+        x: (p1.x + p2.x) / 2,
+        y: (p1.y + p2.y) / 2,
+      };
+    }
+
+    function touchMove(e: KonvaEventObject<TouchEvent>) {
+      if (imageRef.current) {
+        const image = imageRef.current;
+        e.evt.preventDefault();
+        const touch1 = e.evt.touches[0];
+        const touch2 = e.evt.touches[1];
+
+        if (touch1 && touch2) {
+          // if the stage was under Konva's drag&drop
+          // we need to stop it, and implement our own pan logic with two pointers
+          if (image.isDragging()) {
+            image.stopDrag();
+          }
+
+          const p1 = {
+            x: touch1.clientX,
+            y: touch1.clientY,
+          };
+          const p2 = {
+            x: touch2.clientX,
+            y: touch2.clientY,
+          };
+
+          if (!lastCenter.current) {
+            lastCenter.current = getCenter(p1, p2);
+            return;
+          }
+          const newCenter = getCenter(p1, p2);
+
+          const dist = getDistance(p1, p2);
+
+          if (!lastDis.current) {
+            lastDis.current = dist;
+          }
+
+          // local coordinates of center point
+          var pointTo = {
+            x: (newCenter.x - image.x()) / image.scaleX(),
+            y: (newCenter.y - image.y()) / image.scaleX(),
+          };
+
+          var scale = image.scaleX() * (dist / lastDis.current);
+
+          image.scaleX(scale);
+          image.scaleY(scale);
+
+          // calculate new position of the image
+          const dx = newCenter.x - lastCenter.current.x;
+          const dy = newCenter.y - lastCenter.current.y;
+
+          var newPos = {
+            x: newCenter.x - pointTo.x * scale + dx,
+            y: newCenter.y - pointTo.y * scale + dy,
+          };
+
+          image.position(newPos);
+
+          lastDis.current = dist;
+          lastCenter.current = newCenter;
+        }
+      }
+    }
+
+    function touchEnd() {
+      lastDis.current = 0;
+      lastCenter.current = null;
+      copySize();
+    }
+
     return (
       <div>
         <Wrapper ref={parentRef}>
@@ -443,6 +529,8 @@ const Frame = React.forwardRef<Konva.Stage, FrameProps>(
                       2
                     }
                     onDragEnd={copySize}
+                    onTouchMove={touchMove}
+                    onTouchEnd={touchEnd}
                     onTransformEnd={copySize}
                   />
                 )}
