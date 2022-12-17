@@ -10,6 +10,15 @@ const Footer = () => {
     <Wrapper>
       Made by{" "}
       <a
+        href="https://www.facebook.com/thanhlp18"
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        Thành
+      </a>{" "}
+      và
+      {" "}
+      <a
         href="https://www.facebook.com/thiengo105"
         target="_blank"
         rel="noopener noreferrer"
