@@ -1,12 +1,8 @@
 import styled from "styled-components";
 
 const Wrapper = styled.footer`
-  padding: 0 40px;
+  padding: 15px;
   text-align: center;
-
-  @media screen and (max-width: 768px) {
-    padding: 15px;
-  }
 `;
 
 const Footer = () => {

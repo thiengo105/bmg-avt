@@ -2,26 +2,20 @@ import {
   Stage,
   Layer,
   Image as KonvaImage,
-  Text,
-  Group,
   Rect,
   Transformer,
 } from "react-konva";
-import frame from "assets/images/id-card.svg";
+import frame from "assets/images/frame.png";
 import useImage from "use-image";
 import styled from "styled-components";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import Konva from "konva";
 import { KonvaEventObject } from "konva/lib/Node";
 import { useSize } from "ahooks";
-import { Box } from "konva/lib/shapes/Transformer";
+import { Vector2d } from "konva/lib/types";
 
-const IMAGE_WIDTH = 945;
-const IMAGE_HEIGHT = 1299;
-const AVATAR_Y = 567;
-const AVATAR_RADIUS = 247;
-const NAME_Y = 980;
-const FONT_SIZE = 72;
+const IMAGE_WIDTH = 640;
+const IMAGE_HEIGHT = 640;
 const GUIDELINE_OFFSET = 5;
 
 const Wrapper = styled.div`
@@ -62,16 +56,16 @@ type GuideResult = {
 };
 
 type FrameProps = {
-  name: string;
   image: HTMLImageElement | null;
 };
 const Frame = React.forwardRef<Konva.Stage, FrameProps>(
-  ({ name, image }, ref) => {
+  ({ image }, ref) => {
     const [isSelected, setSelected] = useState(true);
     const [frameUrl] = useImage(frame);
     const parentRef = useRef<HTMLDivElement>(null);
     const stageRef = useRef<Konva.Stage>(null);
     const layerRef = useRef<Konva.Layer>(null);
+    const bgLayerRef = useRef<Konva.Layer>(null);
     const imageRef = useRef<Konva.Image>(null);
     const exportImageRef = useRef<Konva.Image>(null);
     const trRef = useRef<Konva.Transformer>(null);
@@ -97,16 +91,6 @@ const Frame = React.forwardRef<Konva.Stage, FrameProps>(
       }
     }, [image, isSelected]);
 
-    const avatarNode = useMemo(() => {
-      const size = AVATAR_RADIUS * 2 * scaleRatio;
-      return {
-        x: (IMAGE_WIDTH / 2 - AVATAR_RADIUS) * scaleRatio,
-        y: (AVATAR_Y - AVATAR_RADIUS) * scaleRatio,
-        width: size,
-        height: size,
-      };
-    }, [scaleRatio]);
-
     // Resize the image to fix the frame,
     // otherwise the transformer will be out of frame
     const imageSize = useMemo(() => {
@@ -118,21 +102,37 @@ const Frame = React.forwardRef<Konva.Stage, FrameProps>(
         const ratio = image.width / image.height;
 
         if (ratio >= 1) {
-          if (image.width > size.width) {
-            width = size.width - 100;
-            const scaleRatio = width / image.width;
-            height = image.height * scaleRatio;
-          }
+          width = size.width;
+          const scaleRatio = width / image.width;
+          height = image.height * scaleRatio;
         } else if (ratio < 1) {
-          if (image.height > size.height) {
-            height = size.height - 100;
-            const scaleRatio = height / image.height;
-            width = image.width * scaleRatio;
-          }
+          height = size.height;
+          const scaleRatio = height / image.height;
+          width = image.width * scaleRatio;
         }
       }
       return { width, height };
     }, [image, size]);
+
+    useEffect(() => {
+      if (size && bgLayerRef.current) {
+        const bgLayer = bgLayerRef.current;
+        bgLayer.removeChildren();
+
+        const frame = new Konva.Image({
+          id: "frame",
+          image: frameUrl,
+          x: 0,
+          y: 0,
+          width: size.width,
+          height: size.width
+        });
+        console.log(frame);
+        frame.cache();
+        frame.drawHitFromCache();
+        bgLayer.add(frame);
+      }
+    }, [frameUrl, size]);
 
     function selectImage(e: KonvaEventObject<MouseEvent>) {
       if (e.target.attrs.id === "photo") {
@@ -152,7 +152,7 @@ const Frame = React.forwardRef<Konva.Stage, FrameProps>(
         const exImg = exportImageRef.current;
 
         const { width, height } = img.size();
-        const { x: sx, y: sy } = img.scale();
+        const { x: sx, y: sy } = img.scale() as Vector2d;
         const { x: px, y: py } = img.position();
         const rotation = img.rotation();
 
@@ -175,25 +175,15 @@ const Frame = React.forwardRef<Konva.Stage, FrameProps>(
       }
     }
 
-    function getLimitTransformBox(oldBox: Box, newBox: Box): Box {
-      if (
-        newBox.width < avatarNode.width ||
-        newBox.height < avatarNode.height
-      ) {
-        return oldBox;
-      }
-      return newBox;
-    }
-
     function getLineGuideStops(): GuideStops {
       return {
         vertical: [
-          avatarNode.x - 1,
-          avatarNode.x + avatarNode.width - 1,
+          0,
+          size?.width || IMAGE_WIDTH,
         ],
         horizontal: [
-          avatarNode.y,
-          avatarNode.y + avatarNode.height,
+          0,
+          size?.height || IMAGE_HEIGHT,
         ],
       };
     }
@@ -434,132 +424,37 @@ const Frame = React.forwardRef<Konva.Stage, FrameProps>(
                   height={size.width / imageRatio}
                   fill="#ffffff"
                 />
-                <KonvaImage
-                  id="frame"
-                  image={frameUrl}
-                  width={size.width}
-                  height={size.width / imageRatio}
-                  x={0}
-                  y={0}
-                  preventDefault={false}
-                />
-                <Group
-                  clipFunc={(ctx: any) => {
-                    ctx.arc(
-                      size.width / 2 - 1,
-                      (size.height * AVATAR_Y) / IMAGE_HEIGHT,
-                      (size.width * AVATAR_RADIUS) / IMAGE_WIDTH,
-                      0,
-                      Math.PI * 2,
-                      false
-                    );
-                  }}
-                >
-                  {image && (
-                    <KonvaImage
-                      onClick={selectImage}
-                      onTap={selectImage}
-                      onDragStart={selectImage}
-                      id="photo"
-                      ref={imageRef}
-                      image={image}
-                      draggable
-                      width={imageSize.width}
-                      height={imageSize.height}
-                      x={(size.width - imageSize.width) / 2}
-                      y={
-                        ((size.height - imageSize.height) * AVATAR_Y) /
-                        IMAGE_HEIGHT
-                      }
-                      onDragEnd={copySize}
-                      onTransformEnd={copySize}
-                    />
-                  )}
-                </Group>
-                <Text
-                  x={0}
-                  width={size.width}
-                  y={(size.height * NAME_Y) / IMAGE_HEIGHT}
-                  text={name}
-                  fill="#FAEE65"
-                  fontSize={(size.width * FONT_SIZE) / IMAGE_WIDTH}
-                  align="center"
-                  fontFamily="VL Selphia"
-                  preventDefault={false}
-                />
-                {/* <Line
-                  points={[
-                    avatarNode.x - 1,
-                    0,
-                    avatarNode.x - 1,
-                    IMAGE_HEIGHT * scaleRatio,
-                  ]}
-                  stroke="rgb(0, 161, 255)"
-                  strokeWidth={1}
-                  dash={[4, 6]}
-                />
-                <Line
-                  points={[
-                    (IMAGE_WIDTH / 2) * scaleRatio,
-                    0,
-                    (IMAGE_WIDTH / 2) * scaleRatio,
-                    IMAGE_HEIGHT * scaleRatio,
-                  ]}
-                  stroke="rgb(0, 161, 255)"
-                  strokeWidth={1}
-                  dash={[4, 6]}
-                />
-                <Line
-                  points={[
-                    avatarNode.x + avatarNode.width - 1,
-                    0,
-                    avatarNode.x + avatarNode.width - 1,
-                    IMAGE_HEIGHT * scaleRatio,
-                  ]}
-                  stroke="rgb(0, 161, 255)"
-                  strokeWidth={1}
-                  dash={[4, 6]}
-                />
-                <Line
-                  points={[
-                    0,
-                    avatarNode.y,
-                    IMAGE_WIDTH * scaleRatio,
-                    avatarNode.y,
-                  ]}
-                  stroke="rgb(0, 161, 255)"
-                  strokeWidth={1}
-                  dash={[4, 6]}
-                />
-                <Line
-                  points={[
-                    0,
-                    AVATAR_Y * scaleRatio,
-                    IMAGE_WIDTH * scaleRatio,
-                    AVATAR_Y * scaleRatio,
-                  ]}
-                  stroke="rgb(0, 161, 255)"
-                  strokeWidth={1}
-                  dash={[4, 6]}
-                />
-                <Line
-                  points={[
-                    0,
-                    avatarNode.y + avatarNode.height,
-                    IMAGE_WIDTH * scaleRatio,
-                    avatarNode.y + avatarNode.height,
-                  ]}
-                  stroke="rgb(0, 161, 255)"
-                  strokeWidth={1}
-                  dash={[4, 6]}
-                /> */}
+
+                {image && (
+                  <KonvaImage
+                    onClick={selectImage}
+                    onTap={selectImage}
+                    onDragStart={selectImage}
+                    id="photo"
+                    ref={imageRef}
+                    image={image}
+                    draggable
+                    width={imageSize.width}
+                    height={imageSize.height}
+                    x={(size.width - imageSize.width) / 2}
+                    y={
+                      (size.height - imageSize.height) /
+                      2
+                    }
+                    onDragEnd={copySize}
+                    onTransformEnd={copySize}
+                  />
+                )}
+              </Layer>
+
+              <Layer ref={bgLayerRef}></Layer>
+              <Layer>
                 {image && isSelected && (
                   <Transformer
                     id="transformer"
                     ref={trRef}
                     centeredScaling={true}
                     keepRatio={true}
-                    boundBoxFunc={getLimitTransformBox}
                     enabledAnchors={[
                       "top-left",
                       "top-right",
@@ -581,6 +476,21 @@ const Frame = React.forwardRef<Konva.Stage, FrameProps>(
         >
           <Layer>
             <Rect width={IMAGE_WIDTH} height={IMAGE_HEIGHT} fill="#ffffff" />
+
+            {image && (
+              <KonvaImage
+                ref={exportImageRef}
+                image={image}
+                width={imageSize.width / scaleRatio}
+                height={imageSize.height / scaleRatio}
+                x={(IMAGE_WIDTH - imageSize.width / scaleRatio) / 2}
+                y={
+                  ((IMAGE_HEIGHT - imageSize.height / scaleRatio)) /
+                  IMAGE_HEIGHT
+                }
+              />
+            )}
+
             <KonvaImage
               image={frameUrl}
               width={IMAGE_WIDTH}
@@ -588,43 +498,7 @@ const Frame = React.forwardRef<Konva.Stage, FrameProps>(
               x={0}
               y={0}
             />
-            <Group
-              clipFunc={(ctx: any) => {
-                ctx.arc(
-                  IMAGE_WIDTH / 2 - 1,
-                  AVATAR_Y,
-                  AVATAR_RADIUS,
-                  0,
-                  Math.PI * 2,
-                  false
-                );
-              }}
-            >
-              {image && (
-                <KonvaImage
-                  ref={exportImageRef}
-                  image={image}
-                  width={imageSize.width / scaleRatio}
-                  height={imageSize.height / scaleRatio}
-                  x={(IMAGE_WIDTH - imageSize.width / scaleRatio) / 2}
-                  y={
-                    ((IMAGE_HEIGHT - imageSize.height / scaleRatio) *
-                      AVATAR_Y) /
-                    IMAGE_HEIGHT
-                  }
-                />
-              )}
-            </Group>
-            <Text
-              x={0}
-              width={IMAGE_WIDTH}
-              y={NAME_Y}
-              text={name}
-              fill="#FAEE65"
-              fontSize={FONT_SIZE}
-              align="center"
-              fontFamily="VL Selphia"
-            />
+
           </Layer>
         </Stage>
       </div>
