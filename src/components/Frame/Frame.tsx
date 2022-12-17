@@ -125,7 +125,8 @@ const Frame = React.forwardRef<Konva.Stage, FrameProps>(
           x: 0,
           y: 0,
           width: size.width,
-          height: size.width
+          height: size.width,
+          preventDefault: false,
         });
         console.log(frame);
         frame.cache();
